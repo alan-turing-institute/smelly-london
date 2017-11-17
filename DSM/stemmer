@@ -1,0 +1,14 @@
+from nltk.stem import *
+import io
+
+fr = "/home/masteradamo/academy/Humdig/corpora/smelly/merged.txt"
+fw = "/home/masteradamo/academy/Humdig/corpora/smelly/stemmed.txt"
+
+stemmer = SnowballStemmer("english",ignore_stopwords=True)
+ftr = io.open(fr,'r',encoding='utf-8')
+ftw = io.open(fw,'w')
+for line in ftr:
+    print "LINE",line
+#    print "STEM",[stemmer.stem(x) for x in line.split()]
+#    print ""
+    ftw.write(" ".join([stemmer.stem(x) for x in line.split()])+"\n")

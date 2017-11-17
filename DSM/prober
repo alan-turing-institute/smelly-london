@@ -1,0 +1,89 @@
+import collections
+import numpy as np
+from nltk.stem import SnowballStemmer
+
+#fr = "/home/masteradamo/academy/Humdig/models/smelly/context/wordus.txt"
+#fv = "/home/masteradamo/academy/Humdig/models/smelly/context/vectors/"
+#fd = "/home/masteradamo/academy/Humdig/models/smelly/context/dimensions/"
+
+fr = "/home/masteradamo/academy/Humdig/models/smelly/stemtext/wordus.txt"
+fv = "/home/masteradamo/academy/Humdig/models/smelly/stemtext/vectors/"
+fd = "/home/masteradamo/academy/Humdig/models/smelly/stemtext/dimensions/"
+
+words = ["smell","odour","effluvium"]
+imps = ["effluent","bakehouse","trade","fumigate","sewer","furnace","disinfect", "rat","nuisance","fly","rubbish","wind","vessel","offensive"]
+
+stemmer = SnowballStemmer("english",ignore_stopwords=True)
+
+def translater():
+    rt = [x.split("::")[0] for x in open(fr,'r').readlines()]
+    tr = {rt[n]:str(n) for n in range(len(rt))}
+    return tr,rt
+
+def spacer(words,ext):
+    wecs = []
+    vecs = collections.defaultdict(list)
+    inds = []
+    for word in words:
+        indl = []
+        vec = collections.defaultdict(float)
+        for pair in open(fv+word+".txt",'r').readlines():
+            vecs[pair.split("::")[0]].append(float(pair.split("::")[1]))
+            indl.append((float(pair.split("::")[1]),pair.split("::")[0]))
+            vec[pair.split("::")[0]] = float(pair.split("::")[1])
+        inds.append([x[1] for x in sorted(indl,reverse=True)[:(ext/len(words))]])
+        wecs.append(vec)
+#    norms = [0.0 for 
+    joint = [x[1] for x in sorted([(sum(vecs[y]),y) for y in vecs if len(vecs[y])==len(words)],reverse=True)][:ext]
+    simple = [x[1] for x in sorted([(sum(vecs[y]),y) for y in vecs],reverse=True)][:ext]
+    indy = [x for y in inds for x in y]
+    return [simple,joint,indy],wecs
+
+def measurer(space,vecs,words):
+    mean = {x:(sum([y[x] for y in vecs])/len(words)) for x in space}
+    morm = np.sqrt(sum([mean[x]**2 for x in mean]))
+    vorm = np.mean([np.sqrt(sum([y[x]**2 for x in space])) for y in vecs])
+    rat = vorm/morm
+    print "RAT",rat
+    mean = {x:mean[x]*rat for x in mean}
+#    mean = {x:50.0 for x in mean}
+    norms = collections.defaultdict(float)
+    dists = {}
+    seen = 0.0
+    for dim in space:
+        pairs = open(fd+dim+".txt",'r').readlines()
+        hits = {}
+        for pt in pairs:
+            vec = pt.split("::")[0]
+            val = float(pt.split("::")[1])
+            if pt.split("::")[0] not in words:
+                norms[vec] += val**2
+                if vec not in dists:
+                    dists[vec] = seen
+                dists[vec] += (mean[dim]-val)**2
+                hits[vec] = True
+        for item in dists:
+            if item not in hits:
+                dists[item] += mean[dim]**2
+        seen += mean[dim]**2
+    norm = [x[1] for x in sorted([(norms[y],y) for y in norms],reverse=True)]
+    dist = [x[1] for x in sorted([(dists[y],y) for y in dists])]
+    return norm,dist
+
+def taker(words,ext,lim):
+    words = [stemmer.stem(x) for x in words]
+    words = [tr[x] for x in words]
+    spaces,vecs = spacer(words,ext)
+    print "SPACES PROJECTED"
+    names = ["SIMPLE","JOINT","INDY"]
+    for n in range(len(spaces)):
+        norm,dist = measurer(spaces[n],vecs,words)
+        print names[n]
+#        print [rt[int(x)] for x in spaces[n]]
+        print "BY NORM",[rt[int(x)] for x in norm[:lim]]
+        print "BY DISTANCE",[rt[int(x)] for x in dist[:lim]]
+        print ""
+
+tr,rt = translater()
+print "TRANSLATERS BUILT"
+taker(words,200,20)
