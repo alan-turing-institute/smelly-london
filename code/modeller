@@ -1,0 +1,151 @@
+import collections
+import numpy as np
+import os
+
+win = 5
+lim = 200000
+smth = 10000
+
+fold = "/home/masteradamo/academy/models/Wikipedia/"
+fr = "/home/masteradamo/academy/corpora/Wikipedia/sentences.txt"
+cycs = [0,500,1300,2500,5000,10000,25000,50000,200000]
+
+#fold = "/home/masteradamo/academy/models/WellcomeMOH/"
+#fr = "/home/masteradamo/academy/corpora/WellcomeMOH/merged.txt"
+#cycs = [0,1000,2000,5000,10000,30000,60000]
+
+wlab = str(win) + "x" + str(win)
+#wlab = "BOWxBOW"
+os.mkdir(fold + wlab)
+os.mkdir(fold + wlab + "/vectors")
+os.mkdir(fold + wlab + "/dimensions")
+
+ww = fold + wlab + "/wordus.txt"
+cw = fold + wlab + "/contextus.txt"
+nw = fold + wlab + "/numbus.txt"
+vw = fold + wlab + "/vectors/"
+dw = fold + wlab + "/dimensions/"
+
+def worder(fr,fw):
+    ftr = open(fr,'r')
+    ftw = open(fw,'w')
+    wdct = collections.defaultdict(int)
+    wcnt = 0
+    scnt = 0
+    for line in ftr:
+        scnt += 1
+        line = line.split()
+        wcnt += len(line)
+        for item in line:
+            wdct[item] += 1
+    ftw.write("\n".join([x[1]+"::"+str(x[0]) for x in sorted([(wdct[y],y) for y in wdct],reverse=True)]))
+    ftr.close()
+    ftw.close()
+    print "TOKENS:",wcnt
+    print "TYPES:",len(wdct)
+    print "SENTENCES:",scnt
+    return wcnt
+
+def cdcter(fr,fd,win,fw,lim):
+    ftr = open(fr,'r')
+    ftd = open(fd,'r').readlines()
+    ftw = open(fw,'w')
+    wdct = {ftd[n].split("::")[0]:n for n in range(len(ftd))}
+    rdct = {n:ftd[n].split("::")[0] for n in range(len(ftd))}
+    cdct = [0]*len(wdct)
+    for line in ftr:
+        nline = [wdct[x] for x in line.split()]
+        for n in range(len(nline)):
+            if int(nline[n]) < lim:
+                lft = range(min(win,n))
+                rgt = range(min(win,len(nline)-n-1))
+                for m in lft:
+                    cdct[nline[n-1-m]] += 1
+                for m in rgt:
+                    cdct[nline[n+1+m]] += 1
+    ftw.write("\n".join([rdct[n] + "::" + str(cdct[n]) for n in range(len(cdct))]))
+    return cdct
+
+def cycler(fr,ww,vw,cdct,win,wcnt,smth):
+#    cycs = [0,500,1300,2500,5000,10000,25000,50000,200000]
+    for n in range(1,len(cycs)):
+        lo = cycs[n-1]
+        hi = cycs[n]
+        replacer(fr,ww,vw,cdct,lo,hi,win,wcnt,smth)
+
+def replacer(fr,ww,vw,cdct,lo,hi,win,wcnt,smth):
+    ftr = open(fr,'r')
+    ftd = open(ww,'r').readlines()
+    wdct = {ftd[n].split("::")[0]:n for n in range(len(ftd))}
+    fdct = collections.defaultdict(lambda : collections.defaultdict(int))
+    ddct = collections.defaultdict(lambda : collections.defaultdict(int))
+#    cdct = collections.defaultdict(int)
+    cnt = 0
+    for line in ftr:
+        cnt += 1
+        if cnt%1000000 == 0:
+            print str(lo) + "-" + str(hi) + ": " + str(cnt)
+        nline = [wdct[x] for x in line.split()] #integer code for each word in sentence
+        for n in range(len(nline)):
+            if int(nline[n]) >= lo and int(nline[n]) < hi:
+                lft = range(min(win,n))
+                rgt = range(min(win,len(nline)-n-1))
+                for m in lft:
+                    fdct[nline[n]][nline[n-1-m]] += 1
+                for m in rgt:
+                    fdct[nline[n]][nline[n+1+m]] += 1
+    ftr.close()
+    calculater(ww,fdct,vw,cdct,wcnt,smth)
+    fdct = {}
+    print str(lo) + " to " + str(hi) + " written"
+
+def equater(word,term,val,wcnt,tdct,cdct,smth):
+    return np.log2(((float(val)*wcnt)/(tdct[word]*(float(cdct[term])+smth)))+1)
+
+def calculater(ww,fdct,fw,cdct,wcnt,smth):
+    ftd = open(ww,'r').readlines()
+    tdct = [float(x.split("::")[1]) for x in ftd]
+    for item in fdct:
+        nub = open(fw+str(item)+".txt",'w')
+        nub.write("\n".join([str(x) + "::" + "%.6f" % equater(item,x,fdct[item][x],wcnt,tdct,cdct,smth) for x in fdct[item]]))
+
+def sifter():
+    vr = fold + wlab + "/vectors/"
+    dw = fold + wlab + "/dimensions/"
+    for n in range(lim):
+#        if n%10000==0:
+#            print "TRANSPOSING",n
+#        print n
+        ftr = open(vr+str(n)+".txt",'r').readlines()
+        print n,len(ftr)
+        for line in ftr:
+            line = line.split("::")
+            open(dw+line[0]+".txt",'a').write(str(n)+"::"+str(float(line[1]))+"\n")
+
+def drifter(fw):
+    ryks = [x*10 for x in cycs]
+    if len(cdct) > ryks[-1]:
+        ryks.append(len(cdct))
+    for m in range(1,len(ryks)):
+        lo = ryks[m-1]
+        hi = ryks[m]
+        dct = collections.defaultdict(list)
+        for n in range(lim):
+            if n%10000 == 0:
+                print "TURNING " + str(lo) + "-" + str(hi) + ": " + str(n)
+            ftr = open(fold + wlab + "/vectors/" + str(n) + '.txt','r').readlines()
+            for line in ftr:
+                line = line.split("::")
+                dct[line[0]].append(str(n) + "::" + "%.6f" % float(line[1]))
+#            ftr.close()
+        for item in dct:
+            open(fw+item+'.txt','w').write("\n".join(dct[item]))
+
+wcnt = worder(fr,ww)
+print "WORDS COUNTED"
+cdct = cdcter(fr,ww,win,cw,lim)
+print "DIMENSIONS COUNTED"
+cycler(fr,ww,vw,cdct,5,wcnt,smth)
+#sifter()
+drifter(fold + wlab + "/dimensions/")
+print "BASE MODEL BUILT"
