@@ -1,0 +1,43 @@
+from sklearn.linear_model import LogisticRegressionCV as lrcv
+from sklearn.linear_model import LogisticRegression
+from sklearn import metrics,cross_validation
+
+f = '/home/stephen/academy/data/smelly/rescores.txt'
+
+#mod = lrcv()
+mod = lrcv(scoring='recall',refit=False,penalty="l1",solver='liblinear')
+logreg = LogisticRegression()
+
+def statter(fr):
+    ftr = [x.split(":::") for x in open(fr,'r').readlines()]
+    yes = []
+    labs = ftr[0][2:]
+    for item in ftr[1:]:
+        if len(item[1])>0:
+            yes.append(int(item[1]))
+        else:
+            yes.append(0)
+#    yes = [int(x[1]) for x in ftr[1:]]
+    xes = [[int(x) for x in y[2:]] for y in ftr[1:]]
+#    predicted = cross_validation.cross_val_predict(logreg,xes,yes,cv=10)
+    mod.fit(xes,yes)
+    pred = mod.predict(xes)
+    print "PRED",pred,sum(pred)
+    hits = sum([yes[x]*pred[x] for x in range(len(yes))])
+    should = sum(yes)
+    would = sum(pred)
+    acc = hits + sum([(yes[x]-1)*(pred[x]-1) for x in range(len(yes))])
+    prec = float(hits)/would
+    rec = float(hits)/should
+    print "precision = ","%.3f" % prec
+    print "recall =","%.3f" % rec
+    print "f-score =","%.3f" % ((2*prec*rec)/(prec+rec))
+    print "accuracy =","%.3f" % (float(acc)/len(yes))
+    print metrics.accuracy_score(yes,pred)
+    print metrics.classification_report(yes,pred)
+    print "LEN",len(mod.coef_),len(labs)
+    print mod.coef_
+    coes = [(mod.coef_[0][x],labs[x]) for x in range(len(labs))]
+    print sorted(coes,reverse=False)[:10]
+
+statter(f)

@@ -1,0 +1,77 @@
+fr = "/home/masteradamo/academy/Humdig/corpora/smelly/stemmed.txt"
+ww = "/home/masteradamo/academy/Humdig/models/smelly/stemtext/wordus.txt"
+nw = "/home/masteradamo/academy/Humdig/models/smelly/stemtext/numbus.txt"
+vw = "/home/masteradamo/academy/Humdig/models/smelly/stemtext/vectors/"
+dw = "/home/masteradamo/academy/Humdig/models/smelly/stemtext/dimensions/"
+
+import collections
+import numpy as np
+
+def worder(fr,fw):
+    ftr = open(fr,'r')
+    ftw = open(fw,'w')
+    wdct = collections.defaultdict(int)
+    wcnt = 0
+    scnt = 0
+    for line in ftr:
+        scnt += 1
+        line = line.split()
+        wcnt += len(line)
+        for item in line:
+            wdct[item] += 1
+    ftw.write("\n".join([x[1]+"::"+str(x[0]) for x in sorted([(wdct[y],y) for y in wdct],reverse=True)]))
+    ftr.close()
+    ftw.close()
+    print "TOKENS:",wcnt
+    print "TYPES:",len(wdct)
+    print "SENTENCES:",scnt
+    return wcnt
+
+def replacer(fr,fd,lim,win):
+    ftr = open(fr,'r')
+    ftd = open(fd,'r').readlines()
+    wdct = {ftd[n].split("::")[0]:n for n in range(len(ftd))}
+    fdct = collections.defaultdict(lambda : collections.defaultdict(int))
+    ddct = collections.defaultdict(lambda : collections.defaultdict(int))
+    cdct = collections.defaultdict(int)
+    for line in ftr:
+#        print "LINE",line
+        nline = [wdct[x] for x in line.split()]
+        for n in range(len(nline)):
+            if int(nline[n]) < lim: #FIX
+                lft = range(min(win,n))
+                rgt = range(min(win,len(nline)-n-1))
+#                print "LENGTHS",n,len(nline)
+#                print "LFT",lft
+#                print "RGT",rgt
+                for m in lft:
+#                    print "LFT-M",m
+                    fdct[nline[n]][nline[n-1-m]] += 1
+                    ddct[nline[n-1-m]][nline[n]] += 1
+                    cdct[nline[n-1-m]] += 1
+                for m in rgt:
+#                    print "RGT-M",m
+                    fdct[nline[n]][nline[n+1+m]] += 1
+                    ddct[nline[n+1+m]][nline[n]] += 1
+                    cdct[nline[n+1+m]] += 1
+    ftr.close()
+    return fdct,ddct,cdct
+
+def equater(word,term,val,wcnt,tdct,cdct,smth):
+    return np.log2(((float(val)*wcnt)/(tdct[word]*(float(cdct[term])+smth)))+1)
+
+def calculater(fd,fdct,fw,cdct,wcnt,smth):
+    ftd = open(fd,'r').readlines()
+    tdct = [float(x.split("::")[1]) for x in ftd]
+    for item in fdct:
+        nub = open(fw+str(item)+".txt",'w')
+        nub.write("\n".join([str(x) + "::" + "%.6f" % equater(item,x,fdct[item][x],wcnt,tdct,cdct,smth) for x in fdct[item]]))
+
+wcnt = worder(fr,ww)
+print "WORDS COUNTED"
+#fdct,ddct,cdct = replacer(fr,ww,60000,5)
+#print "CO-OCCURRENCES TALLIED"
+#calculater(ww,fdct,vw,cdct,wcnt,10000)
+#print "VECTORS SAVED"
+#calculater(ww,ddct,dw,cdct,wcnt,10000)
+#print "DIMENSIONS SAVED"

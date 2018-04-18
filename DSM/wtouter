@@ -1,0 +1,9 @@
+import gensim
+
+words = ["smell","odour","effluvium"]
+imps = ["effluent","bakehouse","trade","fumigate","sewer","furnace","disinfect", "rat","nuisance","fly","rubbish","wind","vessel","offensive"]
+# words not in vocab: sniff, pungent
+
+mod = gensim.models.word2vec.Word2Vec.load("/home/masteradamo/academy/Humdig/models/smelly/CBOW5x300")
+
+print [x[0] for x in mod.most_similar(positive=imps,topn=20)]

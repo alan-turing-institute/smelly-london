@@ -1,0 +1,30 @@
+#This script iterates through various model parameters for both w2v and CSDSM models and writes candidate smell implying words, based on the input in the list "words", to one file, indicated through the fw variable.  Models are identified using the strings listed in the parameter variables below.  The scipt 'modeller' will have assigned appropriate filenames to the corresponding models, and the path to those files should be indicated in the scripts for activating each type of model: proby.py for dynamically contextual models and wtouty for word2vec models.
+
+fw = '/home/masteradamo/academy/data/smelly/words.txt'
+
+import proby
+import wtouty
+
+words = [["smell", "aroma", "odour", "scent"],["stench", "stink", "reek", "foetor", "aroma", "perfume", "scent"]]
+labs = ["Gen","Spec"]
+#wins = [2,5,5000]
+wins = ["2","5","BOW"]
+dims = ["20","200"]
+meths = ["CBOW","SG"]
+lims = ["20","50","100","200"]
+
+ftw = open(fw,'w')
+#ftw.write(",".join(words) + "\n")
+for w in wins:
+    for d in dims:
+        for l in lims:
+            for m in range(len(words)):
+#                norm, dist = proby.taker(words,w,d,l)
+                sults = proby.taker(words[m],w,d,l)
+                names = ["Joint","Indy"]
+                for n in range(len(names)):
+                    ftw.write(labs[m]+names[n]+"NORM"+w+"x"+d+"x"+l+"::" + ",".join(sults[n][0]+words[m]) + "\n")
+                    ftw.write(labs[m]+names[n]+"DIST"+w+"x"+d+"x"+l+"::" + ",".join(sults[n][1]+words[m]) + "\n")
+                for t in meths:
+                    outs = wtouty.returner(words[m],t,w,d,l)
+                    ftw.write(labs[m]+t+w+"x"+d+"x"+l+"::" + ",".join(outs+words[m]) + "\n")

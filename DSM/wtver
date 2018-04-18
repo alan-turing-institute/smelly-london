@@ -1,0 +1,20 @@
+import gensim
+
+fr = "/home/masteradamo/academy/Humdig/corpora/smelly/merged.txt"
+fw = "/home/masteradamo/academy/Humdig/models/smelly/CBOW5x300"
+
+def sentencer():
+    ftr = open(fr,'r')
+    for line in ftr:
+        yield line.split()
+
+class sentencer(object):
+    def __init__(self,n):
+        self.n = n
+
+    def __iter__(self):
+        for line in open(self.n,'r'):
+            yield line.split()
+
+model = gensim.models.Word2Vec(sentences=sentencer(fr),size=300,window=5,max_vocab_size=60000,sg=0)
+model.save(fw)

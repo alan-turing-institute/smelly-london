@@ -1,0 +1,52 @@
+import os
+import re
+import collections
+
+def filer(direct,ftw,chars):
+    for fi in os.listdir(direct):
+        print "FILE",fi
+        path = direct + "/" + fi
+        if os.path.isfile(path):
+            chars = cleaner(path,ftw,chars)
+#        print "CHARS",chars
+    return chars
+
+def cleaner(path,ftw,chars):
+    for line in open(path,'r').readlines():
+        line = re.sub("[:;,\"\(\)\*\[\]#}{]","",line)
+        line = re.sub("( \')|(\' )"," ",line)
+        if re.match("\W",line[-1]):
+            line = line[:-1]
+        line = re.split("([a-z]{2,100}\. +|[a-z]{2,100}\? +|[0-9]\. +)",line)
+#        print "LINE",line
+        line = [line[x] + re.split("(\.|\?)",line[x+1])[0] for x in range(0,2*(len(line)/2),2)]
+        for sent in line:
+#            print "SENT",sent
+            if len(sent.split()) > 4:
+                charchecker(sent,ftw)
+#                chars = charcounter(sent,chars)
+    return chars
+
+def charcounter(sent,chars):
+    rat = "%.2f" % (len(re.sub("[a-zA-Z]+","",sent))/float(len(sent)))
+    if type(rat) == str:
+        chars[rat] += 1
+    return chars
+
+def charchecker(sent,ftw):
+    if len(re.sub("[a-zA-Z]+","",sent))/float(len(sent)) < 0.33:
+        sent = re.sub(" +[0-9]{4} +"," xyear ",sent)
+        sent = re.sub("[0-9]+\.[0-9]+","xdeci",sent)
+        sent = re.sub("[0-9]+((st)|(nd)|(rd)|(th))","xrank",sent)
+        sent = re.sub("[0-9]*,*[0-9]+","xnumb",sent)
+        sent = re.sub(" +-+ +"," ",sent)
+        sent = re.sub(" +"," ",sent)
+        print "SENT",sent
+        ftw.write(sent.lower() + "\n")
+
+chars = collections.defaultdict(int)
+ftw = open("/home/masteradamo/academy/Humdig/corpora/smelly/merged.txt",'w')
+chars = filer("/home/masteradamo/academy/Humdig/corpora/smelly/Smelly_London/data/FullText",ftw,chars)
+#sorts = sorted([(float(x),chars[x]) for x in chars])
+#for item in sorts:
+#    print item
