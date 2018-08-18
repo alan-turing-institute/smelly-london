@@ -1,0 +1,48 @@
+#This script will take a path (the variable "fr") to a directory containing any combination of files and folders constituting a corpus, clean it up, and write a sentence-per-line version of the cleaned corpus to a single file (the variable "fw").  Make sure that all files contained in any subdirectory of the root path fr are part of the corpus.
+
+import os
+import re
+import collections
+
+fr = "/path/to/corpus/"
+fw = "/path/to/output/file"
+
+#recursively explores fr for files containing corpus data
+def filer(direct,ftw):
+    for fi in os.listdir(direct):
+        path = direct + "/" + fi
+        if os.path.isfile(path):
+            cleaner(path,ftw)
+        else:
+            print("DOING",path)
+            filer(path,ftw)
+
+#removes punctuation and detects sentence boundaries
+def cleaner(path,ftw):
+    for line in open(path,'r').readlines():
+        if re.match("\w",line):
+            line = re.sub("[:;,\"\(\)\*\[\]#}{]","",line)
+            line = re.sub("( \')|(\' )"," ",line)
+            if re.match("\W",line[-1]):
+                line = line[:-1]
+            line = re.split("([a-z]{2,100}\. +|[a-z]{2,100}\? +|[0-9]\. +)",line)
+            if len(line) > 1:
+                line = [line[x] + re.split("(\.|\?|\!)",line[x+1])[0] for x in range(0,int(2*((len(line)-1)/2)),2)] + [line[-1]]
+            for sent in line:
+                if len(sent.split()) > 4:
+                    charchecker(sent,ftw)
+
+#substitutes number types with generic tokens and eliminates sentences containing too many non-alphabetic characters
+def charchecker(sent,ftw):
+    if len(re.sub("[a-zA-Z]+","",sent))/float(len(sent)) < 0.33:
+        sent = re.sub(" +[0-9]{4} +"," xyear ",sent)
+        sent = re.sub("[0-9]+\.[0-9]+","xdeci",sent)
+        sent = re.sub("[0-9]+((st)|(nd)|(rd)|(th))","xrank",sent)
+        sent = re.sub("[0-9]*,*[0-9]+","xnumb",sent)
+        sent = re.sub("[\.\?\!]","",sent)
+        sent = re.sub(" +-+ +"," ",sent)
+        sent = re.sub(" +"," ",sent)
+        ftw.write(sent.lower() + "\n")
+
+ftw = open(fw,'w')
+filer(fr,ftw)

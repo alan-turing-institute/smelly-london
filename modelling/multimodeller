@@ -1,0 +1,130 @@
+#This script will take as input the matrix of scores associated with model parameter combinations stored in the file indicated by "fr" and perform a multi-variable logistic regression aimed at learning to match human judgements of the semantics of each sentence.  It will write the coeficients assigned to each parameter combination in the file indicated by "mw", and the actual scores in the file indicated by "sw".
+
+#The code peforms three different versions of the multi-variable regression, seeded in terms of the top independent parameter combinations in terms of precision, recall, and f1 score.  Parameter combinations will be accepted by each version of the regression in the order indicated by that analysis, and as long as they meet the variance inflation factor indicated by the variable "fac" (lower factors impose a stricter collinearity threshhold), up to the number of parameters indicated by the variable "lim" (set lim very high to accept all parameters that satisfy the variance inflation factor).
+
+fr = '/path/to/model/nozos'
+mw = '/path/to/model/coeficients'
+sw = '/path/to/model/multiscores'
+
+from sklearn.linear_model import LogisticRegressionCV as log
+from sklearn.linear_model import LinearRegression as lin
+import numpy as np
+
+flds = 10
+fac = 2
+lim = 500
+
+mod = log(scoring="recall",cv=10,penalty="l1",solver="liblinear")
+lod = lin()
+
+def dataer():
+    data = [x.split(":::") for x in open(fr,'r').readlines()]
+    labs = data[0][2:]
+    n = 1
+    yes = [float(x[1]) for x in data[1:]]
+    xes = [[float(x) for x in y[2:]] for y in data[1:]]
+    sents = [x[0] for x in data[1:]]
+    return xes,yes,labs,sents
+
+def looer(xes,yes,pred):
+    if pred == []:
+        for n in range(len(xes)):
+            trex = xes[:n]+xes[n+1:]
+            trey = yes[:n]+yes[n+1:]
+            mod.fit(trex,trey)
+            pred.append(mod.predict([xes[n]]))
+    hits = sum([pred[x]*yes[x] for x in range(len(pred))])
+    targs = sum(yes)
+    tries = sum(pred)
+    boths = sum([1 for x in range(len(pred)) if pred[x]==yes[x]])
+    tot = float(len(pred))
+    prec = hits/max(1.0,tries)
+    rec = hits/max(1.0,targs)
+    return prec,rec,(2*prec*rec)/max(0.0001,prec+rec),boths/tot
+
+def singler(xes,yes,labs):
+    bests = []
+    for n in range(len(labs)):
+        hexes = [[x[n]] for x in xes]
+        pred = [x[n] for x in xes]
+        prec,rec,fsc,acc = looer(xes,yes,pred)
+#        print(labs[n] + ":",["%.3f" % x for x in [prec,rec,fsc,acc]])
+        bests.append((prec,rec,fsc,acc,labs[n],n))
+    print("BY PREC",[("%.3f" % x[0],x[4]) for x in sorted(bests,reverse=True)[:10]])
+    print("BY REC",[("%.3f" % x[1],x[4]) for x in sorted(bests,key=lambda y:y[1],reverse=True)[:10]])
+    print("BY FSC",[("%.3f" % x[2],x[4]) for x in sorted(bests,key=lambda y:y[2],reverse=True)[:10]])
+    return [x[5] for x in sorted(bests,reverse=True)],[x[5] for x in sorted(bests,key=lambda y:y[1],reverse=True)],[x[5] for x in sorted(bests,key=lambda y:y[2],reverse=True)]
+
+def rater(xes,yes,labs,prec):
+    scope = [prec[0]]
+    tex = [[y[x] for x in scope] for y in xes]
+    for cand in prec:
+        if len(scope) < lim:
+            print("CAND",labs[cand])
+            rex = [x[cand] for x in xes]
+            lod.fit(tex,rex)
+            if 1/(1-(min(0.99,lod.score(tex,rex)))) < fac:
+                print("ACCEPTED",len(scope)+1)
+                scope = scope + [cand]
+                tex = [[y[x] for x in scope] for y in xes]
+            else:
+                print("REJECTED")
+        else:
+            break
+    print("SCOPE",scope,len(scope))
+    return tex,scope
+
+def folder(xes,yes):
+    avs = [[],[],[],[]]
+    pts = [int(x*len(xes)/flds) for x in range(flds)]
+    for n in range(flds-1):
+        trex = xes[:pts[n]] + xes[pts[n+1]:]
+        trey = yes[:pts[n]] + yes[pts[n+1]:]
+        tex = xes[pts[n]:] + xes[:pts[n+1]]
+        tey = yes[pts[n]:] + yes[:pts[n+1]]
+        mod.fit(trex,trey)
+        pred = mod.predict(tex)
+        hits = sum([pred[x]*tey[x] for x in range(len(pred))])
+        targs = sum(tey)
+        tries = sum(pred)
+        boths = sum([1 for x in range(len(pred)) if pred[x]==tey[x]])
+        tot = float(len(pred))
+        prec = hits/max(1.0,tries)
+        rec = hits/max(1.0,targs)
+        avs[0].append(prec)
+        avs[1].append(rec)
+        avs[2].append((2*prec*rec)/max(0.001,prec+rec))
+        avs[3].append(boths/tot)
+    return np.mean(avs[0]),np.mean(avs[1]),np.mean(avs[2]),np.mean(avs[3]),pred
+
+def modwriter(mtw,labs,meth,scope,scores,coefs):
+    mtw.write("FEATURES WITH BEST " + meth.upper() + ": precision = " + "%.3f" % scores[0] + ", recall = " + "%.3f" % scores[1] + ", f-score = " + "%.3f" % scores[2] + ", accurracy = " + "%.3f" % scores[3] + ", total features = " + str(len(scope)) + "\n")
+    mtw.write(", ".join([":".join([labs[scope[x]],"%.3f" % coefs[x]]) for x in range(len(scope))]) + "\n")
+    corts = sorted([[coefs[x],labs[scope[x]]] for x in range(len(scope))],reverse=True)
+    mtw.write("TOP TEN: " + ", ".join([": ".join([x[1],"%.3f" % x[0]]) for x in corts[:10]]) + "\n")
+    mtw.write("BOTTOM TEN: " + ", ".join([": ".join([x[1],"%.3f" % x[0]]) for x in corts[-10:]]) + "\n\n")
+
+def scowriter(stw,mat):
+    stw.write("sentences:::human:::precion:::recall:::f-score\n")
+    stw.write("\n".join([":::".join(x) for x in mat]))
+
+def cycler(xes,yes,labs,sents):
+    mtw = open(mw,'w')
+    stw = open(sw,'w')
+    mat = [[sents[x],str(int(yes[x]))] for x in range(len(sents))]
+    starts = singler(xes,yes,labs)
+    meths = ["Precision","Recall","F1"]
+    for n in range(len(meths)):
+        tex,scope = rater(xes,yes,labs,starts[n])
+        scores = folder(tex,yes)
+        mod.fit(tex,yes)
+        coefs = mod.coef_[0]
+        print("COEFS",coefs)
+        print("SCOPE",scope)
+        modwriter(mtw,labs,meths[n],scope,scores,coefs)
+        for m in range(len(mat)):
+            mat[m].append(str(int(scores[4][m])))
+    scowriter(stw,mat)
+
+xes,yes,labs,sents = dataer()
+cycler(xes,yes,labs,sents)

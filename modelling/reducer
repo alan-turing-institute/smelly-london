@@ -1,0 +1,21 @@
+#This script will eliminate columns from the scores output for various model parameter combinations by the script "outputter" to the file indicated by "fr" that have only values of 0 (ie, no sentences are identified as exhibiting the semantics being modelled).  This allows for more efficient multi-variable modelling.
+
+fr = '/path/to/model/scores'
+fw = '/path/to/model/nozos.txt'
+
+def dataer():
+    ftw = open(fw,'w')
+    data = [x.split(":::") for x in open(fr,'r').readlines()]
+    rata = [[x[0],x[1]] for x in data]
+    cnt = 0
+    tot = 0
+    for n in range(2,len(data[0])):
+        tot += 1
+        if sum([float(x[n]) for x in data[1:]]) > 0:
+            cnt += 1
+            for m in range(len(data)):
+                rata[m].append(data[m][n])
+    ftw.write("\n".join([":::".join(x) for x in rata]))
+    print(cnt,"OUT OF",tot)
+
+dataer()

@@ -1,0 +1,122 @@
+#This code builds the base space for a dynamically contextual distributional semantic model.  It will read a cleaned up, sentence-per-line corpus, such as that produced by the "cleaner" script, from the path specified by the variable "fr", and will write the model to the directory specified by the variable "fold".  It will created two subdirectories "fold/vectors" and "fold/dimensions", which are in effect a vector-wise and dimension-wise cut of the base space.  It also creates some files used in the course of tracking word frequencies.  These files should not be discarded, as they are used in subsequent corpus analysis.
+
+import collections
+import numpy as np
+import os
+
+win = 5 #co-occurrence window size (either side of target word)
+lim = 200000 #vocabulary size (top most frequent words)
+smth = 10000 #smoothing constant added to co-occurrence word count
+
+fold = "/path/to/base/model/"
+fr = "/path/to/cleaned/corpus"
+cycs = [0,500,1300,2500,5000,10000,25000,50000,200000] #adjust these values depending on your memory capacity
+
+wlab = str(win) + "x" + str(win)
+os.mkdir(fold + wlab)
+os.mkdir(fold + wlab + "/vectors")
+os.mkdir(fold + wlab + "/dimensions")
+
+ww = fold + wlab + "/wordus.txt"
+cw = fold + wlab + "/contextus.txt"
+vw = fold + wlab + "/vectors/"
+dw = fold + wlab + "/dimensions/"
+
+def worder(fr,fw):
+    ftr = open(fr,'r')
+    ftw = open(fw,'w')
+    wdct = collections.defaultdict(int)
+    wcnt = 0
+    scnt = 0
+    for line in ftr:
+        scnt += 1
+        line = line.split()
+        wcnt += len(line)
+        for item in line:
+            wdct[item] += 1
+    ftw.write("\n".join([x[1]+"::"+str(x[0]) for x in sorted([(wdct[y],y) for y in wdct],reverse=True)]))
+    ftr.close()
+    ftw.close()
+    print("TOKENS:",wcnt)
+    print("TYPES:",len(wdct))
+    print("SENTENCES:",scnt)
+    return wcnt
+
+def cdcter(fr,fd,win,fw,lim):
+    ftr = open(fr,'r')
+    ftd = open(fd,'r').readlines()
+    ftw = open(fw,'w')
+    wdct = {ftd[n].split("::")[0]:n for n in range(len(ftd))}
+    rdct = {n:ftd[n].split("::")[0] for n in range(len(ftd))}
+    cdct = [0]*len(wdct)
+    for line in ftr:
+        nline = [wdct[x] for x in line.split()]
+        for n in range(len(nline)):
+            if n < lim:
+                lft = range(min(win,n))
+                rgt = range(min(win,len(nline)-n-1))
+                for m in lft:
+                    cdct[nline[n-1-m]] += 1
+                for m in rgt:
+                    cdct[nline[n+1+m]] += 1
+    ftw.write("\n".join([rdct[n] + "::" + str(cdct[n]) for n in range(len(cdct))]))
+    return cdct
+
+def cycler(fr,ww,vw,cdct,win,wct,smth):
+    for n in range(1,len(cycs)):
+        lo = cycs[n-1]
+        hi = cycs[n]
+        replacer(fr,ww,vw,cdct,lo,hi,win,wcnt,smth)
+
+def replacer(fr,ww,vw,cdct,lo,hi,win,wcnt,smth):
+    ftr = open(fr,'r')
+    ftd = open(ww,'r').readlines()
+    wdct = {ftd[n].split("::")[0]:n for n in range(len(ftd))}
+    fdct = collections.defaultdict(lambda : collections.defaultdict(int))
+    ddct = collections.defaultdict(lambda : collections.defaultdict(int))
+    cnt = 0
+    for line in ftr:
+        cnt += 1
+        if cnt%1000000 == 0:
+            print(str(lo) + "-" + str(hi) + ": " + str(cnt))
+        nline = [wdct[x] for x in line.split()]
+        for n in range(len(nline)):
+            if int(nline[n]) >= lo and int(nline[n]) < hi:
+                lft = range(min(win,n))
+                rgt = range(min(win,len(nline)-n-1))
+                for m in lft:
+                    fdct[nline[n]][nline[n-1-m]] += 1
+                for m in rgt:
+                    fdct[nline[n]][nline[n+1+m]] += 1
+    ftr.close()
+    calculater(ww,fdct,vw,cdct,wcnt,smth)
+    fdct = {}
+    print(str(lo) + " to " + str(hi) + " written")
+
+def equater(word,term,val,wcnt,tdct,cdct,smth):
+    return np.log2(((float(val)*wcnt)/(tdct[word]*(float(cdct[term])+smth)))+1)
+
+def calculater(ww,fdct,fw,cdct,wcnt,smth):
+    ftd = open(ww,'r').readlines()
+    tdct = [float(x.split("::")[1]) for x in ftd]
+    for item in fdct:
+        nub = open(fw+str(item)+".txt",'w')
+        nub.write("\n".join([str(x) + "::" + "%.6f" % equater(item,x,fdct[item][x],wcnt,tdct,cdct,smth) for x in fdct[item]]))
+
+def sifter():
+    vr = fold + wlab + "/vectors/"
+    dw = fold + wlab + "/dimensions/"
+    for n in range(lim):
+        ftr = open(vr+str(n)+".txt",'r').readlines()
+        print(n,len(ftr))
+        for line in ftr:
+            line = line.split("::")
+            open(dw+line[0]+".txt",'a').write(str(n)+"::"+str(float(line[1]))+"\n")
+
+wcnt = worder(fr,ww)
+print("WORDS COUNTED")
+cdct = cdcter(fr,ww,win,cw,lim)
+print("DIMENSIONS COUNTED")
+cycler(fr,ww,vw,cdct,5,wcnt,smth)
+sifter()
+print("BASE MODEL BUILT")

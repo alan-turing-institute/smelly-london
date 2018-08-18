@@ -1,0 +1,30 @@
+#This script iterates through various model parameters for both w2v and CSDSM models and writes candidate smell implying words, based on the input in each sublist of the list "words", to one file, indicated through the fw variable.  Models are identified using the strings listed in the parameter variables below.  The scipts "modeller" and "wtver" will have been used to generate a dynamically contextual and static (word2vec) distributional semantic space, and the path to those files should be indicated in the scripts for activating each type of model: proby.py for dynamically contextual models and wtouty.py for word2vec models.
+
+#The parameters "wins" and "dims" should correspond to the co-occurrence window sizes and dimensionalities associated with different versions of the distributional semantic models, while the parameters "meths" correspond to the two different word2vec modelling techniques.  "lims" are the total number of words output for each model.  The script "proby" will generate lists for both Joint and Indy type contextualised subspaces, and will search these subspaces using both norm and distance from centroid techniques to discover words.  As such, models with the corresponding parameters, named accordingly, must already be built.
+
+fw = '/path/to/word/lists'
+
+import proby
+import wtouty
+
+words = [["smell", "aroma", "odour", "scent"],["stench", "stink", "reek", "foetor", "aroma", "perfume", "scent"]]
+labs = ["Gen","Spec"]
+#wins = [2,5,5000]
+wins = ["2","5","BOW"]
+dims = ["20","200"]
+meths = ["CBOW","SG"]
+lims = ["20","50","100","200"]
+
+ftw = open(fw,'w')
+for w in wins:
+    for d in dims:
+        for l in lims:
+            for m in range(len(words)):
+                sults = proby.taker(words[m],w,d,l)
+                names = ["Joint","Indy"]
+                for n in range(len(names)):
+                    ftw.write(labs[m]+names[n]+"NORM"+w+"x"+d+"x"+l+"::" + ",".join(sults[n][0]+words[m]) + "\n")
+                    ftw.write(labs[m]+names[n]+"DIST"+w+"x"+d+"x"+l+"::" + ",".join(sults[n][1]+words[m]) + "\n")
+                for t in meths:
+                    outs = wtouty.returner(words[m],t,w,d,l)
+                    ftw.write(labs[m]+t+w+"x"+d+"x"+l+"::" + ",".join(outs+words[m]) + "\n")
