@@ -1,0 +1,106 @@
+---
+title: "Evaluation of Smelly London - implied smells analysis"
+author: "Barbara McGillivray"
+date: "28/02/2018"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+```
+
+# Initialization
+
+```{r}
+dir = file.path("/Users", "bmcgillivray", "Documents", "OneDrive", "OneDrive - The Alan Turing Institute", "Research", "Smelly_London", "evaluation", fsep = "/")
+```
+
+## Read data
+
+```{r}
+# Replace separator ":::" with "\t" in ModelScores.txt and save as ModelScores1.txt
+ev = read.csv(paste(dir, "ModelScores1.txt", sep = "/"), sep = "\t")
+dim(ev)
+```
+
+Replace NAs in manual annotation column with zeros:
+
+```{r}
+ev$X1[is.na(ev$X1)] <- 0
+```
+
+
+# Evaluation metrics
+
+```{r}
+precision <- function(i) {
+  if (sum(ev[,i]) > 0){
+    p = (drop(ev[,2] %*% ev[,i]))/sum(ev[,i])
+  }
+  else {
+    p = 0
+  }
+  p = round(p, 2)
+}
+recall <- function(i) {
+  r = (drop(ev[,2] %*% ev[,i]))/sum(ev[,2])
+  r = round(r, 2)
+}
+precision_scores = lapply(3:ncol(ev), precision)
+#names(precision_scores) = colnames(ev)[3:ncol(ev)]
+recall_scores = lapply(3:ncol(ev), recall)
+#names(recall_scores) = colnames(ev)[3:ncol(ev)]
+eval = data.frame(model = colnames(ev)[3:ncol(ev)], precision = as.numeric(precision_scores), recall = as.numeric(recall_scores))
+eval$Fscore = round(ifelse(eval$precision+eval$recall>0, 2*(eval$precision*eval$recall)/(eval$precision+eval$recall), 0), 2)
+```
+
+# Analysis
+
+```{r}
+summary(eval)
+hist(eval$precision, main = "Distribution of precision scores", xlab = "Precision")
+hist(eval$recall, main = "Distribution of recall scores", xlab = "Recall")
+png(paste(dir, "hist_fscore.png", sep = "/"))
+hist(eval$Fscore, main = "Distribution of F-scores", xlab = "F-score")
+dev.off()
+```
+
+Maximum F-score:
+
+```{r}
+eval[which.max(eval$Fscore),c("model")]
+top_p = eval[eval$precision == max(eval$precision),]
+top_p = top_p[order(top_p$precision, decreasing = T),]
+top_p = top_p[order(top_p$model, decreasing = F),]
+top_r = eval[eval$recall == max(eval$recall),]
+top_r = top_r[order(top_r$precision, decreasing = T),]
+top_r = top_r[order(top_r$model, decreasing = F),]
+top_f = eval[eval$Fscore == max(eval$Fscore),]
+top_f = top_f[order(top_f$precision, decreasing = T),]
+top_f = top_f[order(top_f$model, decreasing = F),]
+kable(top_p)
+kable(top_r)
+kable(top_f)
+```
+
+Visualization of best models:
+
+```{r}
+png(filename = paste(dir, "Best_parameters.png", sep = "/"))
+plot(eval$precision, eval$recall, xlab = "Precision", ylab = "Recall", main = "Best parameter combination", col = "gray")
+for (i in 1:5){
+  text(top_p[i,]$precision-0.2, i*0.05, labels = top_p[i,]$model, col = "red")
+}
+for (i in 1:5){
+  text(0.2+i*0.05, top_r[i,]$recall-i*0.05, labels = top_r[i,]$model, col = "blue")
+}
+for (i in 1:5){
+  text(0.2+i*0.05, top_f[i,]$Fscore-i*0.05, labels = top_f[i,]$model, col = "green")
+}
+dev.off()
+```
+
+
